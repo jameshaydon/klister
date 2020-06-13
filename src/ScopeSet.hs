@@ -18,6 +18,7 @@ module ScopeSet (
   , insertUniversally
   , deleteAtPhase
   , deleteUniversally
+  , flipAtPhase
   , flipUniversally
   ) where
 
@@ -99,6 +100,11 @@ deleteUniversally sc = set (phaseScopes . each . at sc)
                            Nothing
                      . set (universalScopes . at sc)
                            Nothing
+
+flipAtPhase :: Phase -> Scope -> ScopeSet -> ScopeSet
+flipAtPhase p sc scs
+      | member p sc scs = deleteAtPhase p sc scs
+      | otherwise       = insertAtPhase p sc scs
 
 flipUniversally :: Scope -> ScopeSet -> ScopeSet
 flipUniversally sc = over (phaseScopes . each . at sc) flipper .

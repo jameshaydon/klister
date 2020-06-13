@@ -34,7 +34,8 @@ data ExprF a
   deriving (Eq, Functor, Show)
 makePrisms ''ExprF
 
-
+-- | User-level syntax. This is an S-expression tree annotated with
+-- source-locations and scope-sets.
 newtype Syntax = Syntax { _unSyntax :: (Stx (ExprF Syntax)) }
   deriving (Eq, Show)
 makeLenses ''Syntax
@@ -51,17 +52,17 @@ makeLenses ''ParsedModule
 
 class HasScopes a where
   getScopes :: a -> ScopeSet
-  adjustScope :: (Scope -> ScopeSet -> ScopeSet) -> a -> Scope -> a
   mapScopes :: (ScopeSet -> ScopeSet) -> a -> a
+
+adjustScope :: (HasScopes a) => (Scope -> ScopeSet -> ScopeSet) -> a -> Scope -> a
+adjustScope f stx sc = mapScopes (f sc) stx
 
 instance HasScopes (Stx Text) where
   getScopes (Stx scs _ _) = scs
-  adjustScope f (Stx scs srcloc x) sc = Stx (f sc scs) srcloc x
   mapScopes f (Stx scs srcloc x) = Stx (f scs) srcloc x
 
 instance HasScopes Syntax where
   getScopes (Syntax (Stx scs _ _)) = scs
-  adjustScope f stx sc = mapScopes (f sc) stx
   mapScopes f (Syntax (Stx scs srcloc e)) =
     Syntax $
     Stx (f scs) srcloc $
@@ -86,11 +87,7 @@ removeScope :: HasScopes a => Phase -> a -> Scope -> a
 removeScope p = adjustScope (ScopeSet.deleteAtPhase p)
 
 flipScope :: HasScopes a => Phase -> a -> Scope -> a
-flipScope p = adjustScope go
-  where
-    go sc scs
-      | ScopeSet.member p sc scs = ScopeSet.deleteAtPhase p sc scs
-      | otherwise                = ScopeSet.insertAtPhase p sc scs
+flipScope p = adjustScope (ScopeSet.flipAtPhase p)
 
 flipScope' :: HasScopes a => a -> Scope -> a
 flipScope' = adjustScope ScopeSet.flipUniversally
@@ -146,6 +143,9 @@ instance AlphaEq a => AlphaEq (ExprF a) where
   alphaCheck (List xs1)
              (List xs2) = do
     alphaCheck xs1 xs2
+  alphaCheck (String s1)
+             (String s2) =
+    alphaCheck s1 s2
   alphaCheck _ _ = notAlphaEquivalent
 
 instance AlphaEq Syntax where
